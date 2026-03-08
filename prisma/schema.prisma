@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model BusinessCard {
+  id            String   @id @default(cuid())
+  userId        String   @db.VarChar(128)
+  fullName      String?  @db.VarChar(191)
+  company       String?  @db.VarChar(191)
+  department    String?  @db.VarChar(191)
+  title         String?  @db.VarChar(191)
+  email         String?  @db.VarChar(191)
+  phone         String?  @db.VarChar(64)
+  address       String?  @db.VarChar(512)
+  website       String?  @db.VarChar(191)
+  memo          String?  @db.Text
+  imageBase64   String?  @db.Text
+  imageMimeType String?  @db.VarChar(64)
+  confidence    Json?
+  rawExtraction Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, fullName])
+  @@index([userId, company])
+  @@index([userId, email])
+}
