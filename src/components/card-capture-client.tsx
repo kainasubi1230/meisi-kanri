@@ -202,7 +202,7 @@ function scoreNormalizedRect(rect: NormalizedRect): number {
 
   const overflowX = Math.max(0, -(rect.x)) + Math.max(0, rect.x + rect.width - 1);
   const overflowY = Math.max(0, -(rect.y)) + Math.max(0, rect.y + rect.height - 1);
-  const overflowPenalty = (overflowX + overflowY) * 3;
+  const overflowPenalty = (overflowX + overflowY) * 10; // Stronger penalty for overflow
 
   const clampedWidth = Math.max(0, Math.min(1, rect.x + rect.width) - Math.max(0, rect.x));
   const clampedHeight = Math.max(0, Math.min(1, rect.y + rect.height) - Math.max(0, rect.y));
@@ -211,8 +211,8 @@ function scoreNormalizedRect(rect: NormalizedRect): number {
     return Number.NEGATIVE_INFINITY;
   }
 
-  // Business card in a photo is usually not tiny and not full-screen.
-  const areaPenalty = Math.abs(area - 0.18) * 2.2 + (area < 0.01 ? 2 : 0) + (area > 0.95 ? 2 : 0);
+  // Business card should be reasonably sized (10-50% of image)
+  const areaPenalty = Math.abs(area - 0.25) * 1.5 + (area < 0.04 ? 5 : 0) + (area > 0.85 ? 5 : 0);
 
   return -(overflowPenalty + areaPenalty);
 }
@@ -237,8 +237,8 @@ function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: numb
     scoreNormalizedRect(current) > scoreNormalizedRect(bestRect) ? current : bestRect,
   );
 
-  // Small padding helps prevent text clipping on box edges.
-  const padding = 0.025;
+  // Minimal padding to stay as close to card edges as possible
+  const padding = 0.005;
   const x1 = clamp01(best.x - padding);
   const y1 = clamp01(best.y - padding);
   const x2 = clamp01(best.x + best.width + padding);
@@ -249,15 +249,16 @@ function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: numb
   const sw = Math.max(1, Math.floor((x2 - x1) * imageWidth));
   const sh = Math.max(1, Math.floor((y2 - y1) * imageHeight));
 
-  if (sw < 12 || sh < 12) {
+  // Ensure minimum size and reject if outside bounds
+  if (sw < 50 || sh < 30) {
     return null;
   }
 
   return {
-    sx,
-    sy,
-    sw: Math.min(sw, imageWidth - sx),
-    sh: Math.min(sh, imageHeight - sy),
+    sx: Math.max(0, sx),
+    sy: Math.max(0, sy),
+    sw: Math.min(sw, imageWidth - Math.max(0, sx)),
+    sh: Math.min(sh, imageHeight - Math.max(0, sy)),
   };
 }
 
@@ -640,7 +641,7 @@ export function CardCaptureClient() {
             </div>
           ) : null}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
             {fieldKeys.map((key) => (
               <div key={key} className="flex flex-col gap-1">
                 <label htmlFor={key} className="text-sm font-medium text-zinc-700">
@@ -650,7 +651,7 @@ export function CardCaptureClient() {
                   id={key}
                   value={activeCard.fields[key] ?? ""}
                   onChange={(event) => updateField(activeCardIndex, key, event.target.value)}
-                  className={`input ${confidenceClass(activeCard.confidence[key])}`}
+                  className={`input w-full ${confidenceClass(activeCard.confidence[key])}`}
                 />
               </div>
             ))}
@@ -659,7 +660,7 @@ export function CardCaptureClient() {
           {activeCard.imageBase64 && activeCard.imageMimeType ? (
             <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-2.5">
               <p className="mb-2 text-xs font-medium text-zinc-600">{t.croppedPreviewLabel}</p>
-              <div className="relative h-32 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white">
+              <div className="relative w-full overflow-hidden rounded-xl border border-zinc-200 bg-white" style={{ aspectRatio: "4/3", minHeight: "200px" }}>
                 <Image
                   src={`data:${activeCard.imageMimeType};base64,${activeCard.imageBase64}`}
                   alt={`card-${activeCardIndex + 1}-crop`}

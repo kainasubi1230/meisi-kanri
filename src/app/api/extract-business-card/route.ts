@@ -18,7 +18,7 @@ const maxUploadBytes = 8 * 1024 * 1024;
 
 const extractionPrompt = `You are an advanced OCR and data extraction engine specialized in business cards, particularly Japanese business cards (meishi).
 
-One uploaded image can include multiple business cards. Extract all visible business card information accurately.
+One uploaded image can include multiple business cards. Extract all visible business card information accurately and provide precise bounding boxes.
 
 Return JSON only in this shape:
 {
@@ -62,16 +62,21 @@ Rules:
 - For emails, ensure valid email format.
 - For addresses, include full address in Japanese if applicable.
 - For websites, include http:// or https:// if missing.
-- boundingBox must represent top-left x/y plus width/height of the card region in normalized 0..1 coordinates relative to the full image.
+- **CRITICAL: boundingBox MUST tightly fit the actual business card edges with minimal padding.**
+  - x and y should be the top-left corner coordinates of the card (0..1 normalized to image).
+  - width and height should be the dimensions from the top-left corner.
+  - Do NOT include background or surrounding space.
+  - Normalize all coordinates to 0..1 range relative to the full image.
+- **When multiple cards exist, ensure each has its own accurate boundingBox that only covers that card.**
 - confidence must be between 0.0 and 1.0, reflecting your certainty in the extraction.
-- If multiple cards, ensure each has its own boundingBox.
 - Return raw JSON with no markdown, code blocks, or explanations.
 
 Examples:
 - fullName: "田中太郎" or "Tanaka Taro"
 - company: "株式会社ABC" or "ABC Corporation"
 - phone: "+81-3-1234-5678" or "03-1234-5678"
-- email: "taro.tanaka@abc.co.jp"`;
+- email: "taro.tanaka@abc.co.jp"
+- boundingBox for a card at top-left: {"x": 0.05, "y": 0.1, "width": 0.4, "height": 0.3}`;
 
 function extractJsonCandidate(text: string): string {
   const fencedMatch = text.match(/```json\s*([\s\S]+?)```/i);
