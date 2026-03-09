@@ -26,9 +26,41 @@ model BusinessCard {
   rawExtraction Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  shares        BusinessCardShare[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, fullName])
   @@index([userId, company])
   @@index([userId, email])
+}
+
+model AppUser {
+  id           String   @id @default(cuid())
+  email        String   @unique @db.VarChar(191)
+  passwordHash String   @db.VarChar(255)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BusinessCardShare {
+  id               String       @id @default(cuid())
+  cardId           String
+  ownerUserId      String       @db.VarChar(128)
+  sharedWithUserId String       @db.VarChar(191)
+  createdAt        DateTime     @default(now())
+  card             BusinessCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, sharedWithUserId])
+  @@index([sharedWithUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId])
+}
+
+model AppUserShare {
+  id               String   @id @default(cuid())
+  ownerUserId      String   @db.VarChar(191)
+  sharedWithUserId String   @db.VarChar(191)
+  createdAt        DateTime @default(now())
+
+  @@unique([ownerUserId, sharedWithUserId])
+  @@index([sharedWithUserId, createdAt(sort: Desc)])
 }

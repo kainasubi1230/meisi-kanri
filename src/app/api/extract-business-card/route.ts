@@ -12,6 +12,9 @@ import {
 
 export const runtime = "nodejs";
 
+const supportedMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"]);
+const maxUploadBytes = 8 * 1024 * 1024;
+
 const extractionPrompt = `You are an OCR and data extraction engine for business cards.
 One uploaded image can include multiple business cards.
 
@@ -52,7 +55,8 @@ Return JSON only in this shape:
 Rules:
 - Detect all visible business cards in the image and output one object per card.
 - Use null for unknown values.
-- boundingBox must be normalized to 0..1 relative to the full image.
+- boundingBox must represent top-left x/y plus width/height of the card region.
+- Prefer normalized 0..1 values relative to the full image. Do not return center-point coordinates.
 - confidence must be between 0.0 and 1.0.
 - Return raw JSON with no markdown or explanations.`;
 
@@ -194,11 +198,41 @@ function formatExtractionError(error: unknown): { status: number; message: strin
     const maybeError = error as { status?: number; message?: string };
     const status = maybeError.status;
     const message = maybeError.message || "";
+    const lowerMessage = message.toLowerCase();
 
-    if (status === 429 || message.includes("429 Too Many Requests") || message.toLowerCase().includes("quota")) {
+    if (status === 429 || message.includes("429 Too Many Requests") || lowerMessage.includes("quota")) {
       return {
         status: 429,
         message: "Gemini API quota exceeded. Check billing/quota settings and retry later.",
+      };
+    }
+
+    if (status === 400) {
+      if (lowerMessage.includes("api key not valid") || lowerMessage.includes("api_key_invalid")) {
+        return {
+          status: 400,
+          message: "Gemini API key is invalid. Please set a valid GEMINI_API_KEY in .env.local.",
+        };
+      }
+
+      if (lowerMessage.includes("unable to process input image")) {
+        return {
+          status: 400,
+          message:
+            "The uploaded image could not be processed. Please use a clearer JPG/PNG image (HEIC is not supported).",
+        };
+      }
+
+      if (lowerMessage.includes("invalid argument")) {
+        return {
+          status: 400,
+          message: "Gemini rejected the request format. Please retry with a different image.",
+        };
+      }
+
+      return {
+        status: 400,
+        message: "Gemini returned 400 Bad Request. Check image format/size and retry.",
       };
     }
 
@@ -242,6 +276,23 @@ export async function POST(request: Request) {
     }
 
     const mimeType = file.type || "image/jpeg";
+    if (!supportedMimeTypes.has(mimeType.toLowerCase())) {
+      return NextResponse.json(
+        {
+          error: `Unsupported image type: ${mimeType}. Please upload JPG/PNG/WEBP/GIF/BMP.`,
+        },
+        { status: 400 },
+      );
+    }
+    if (file.size > maxUploadBytes) {
+      return NextResponse.json(
+        {
+          error: `Image is too large (${Math.ceil(file.size / (1024 * 1024))}MB). Please upload <= 8MB image.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString("base64");
 
@@ -255,14 +306,7 @@ export async function POST(request: Request) {
 
     for (const modelName of modelCandidates) {
       try {
-        const model = client.getGenerativeModel({
-          model: modelName,
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        });
-
-        result = await model.generateContent([
+        const requestParts = [
           extractionPrompt,
           {
             inlineData: {
@@ -270,7 +314,25 @@ export async function POST(request: Request) {
               mimeType,
             },
           },
-        ]);
+        ];
+
+        try {
+          const model = client.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              responseMimeType: "application/json",
+            },
+          });
+          result = await model.generateContent(requestParts);
+        } catch (firstError) {
+          const maybeFirstError = firstError as { status?: number };
+          if (maybeFirstError.status !== 400) {
+            throw firstError;
+          }
+
+          const fallbackModel = client.getGenerativeModel({ model: modelName });
+          result = await fallbackModel.generateContent(requestParts);
+        }
 
         break;
       } catch (error) {
@@ -278,7 +340,12 @@ export async function POST(request: Request) {
         const maybeError = error as { status?: number; message?: string };
         const message = (maybeError.message || "").toLowerCase();
         const shouldRetry =
-          maybeError.status === 429 || message.includes("quota") || message.includes("too many requests");
+          maybeError.status === 429 ||
+          maybeError.status === 400 ||
+          maybeError.status === 404 ||
+          message.includes("quota") ||
+          message.includes("too many requests") ||
+          message.includes("not found for api version");
 
         if (!shouldRetry) {
           throw error;

@@ -19,7 +19,8 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 type ExtractStatus = "idle" | "extracting" | "done" | "error";
 
 type SelectedImage = {
-  file: File;
+  sourceName: string;
+  uploadFile: File;
   previewUrl: string;
   base64: string;
 };
@@ -123,6 +124,12 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+  });
+}
+
 function emptyEditableCard(): EditableCard {
   return {
     fields: { ...emptyBusinessCardFields },
@@ -132,36 +139,126 @@ function emptyEditableCard(): EditableCard {
   };
 }
 
-function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: number) {
-  const usesPixels = box.x > 1 || box.y > 1 || box.width > 1 || box.height > 1;
-  const normalized = usesPixels
-    ? {
-        x: box.x / imageWidth,
-        y: box.y / imageHeight,
-        width: box.width / imageWidth,
-        height: box.height / imageHeight,
-      }
-    : box;
+type NormalizedRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
-  const clamp = (value: number) => Math.max(0, Math.min(1, value));
-  const x = clamp(normalized.x);
-  const y = clamp(normalized.y);
-  const width = clamp(normalized.width);
-  const height = clamp(normalized.height);
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
 
-  const sx = Math.floor(x * imageWidth);
-  const sy = Math.floor(y * imageHeight);
-  const sw = Math.max(1, Math.floor(width * imageWidth));
-  const sh = Math.max(1, Math.floor(height * imageHeight));
+function normalizeRectFromTopLeft(
+  box: BoundingBox,
+  xScale: number,
+  yScale: number,
+): NormalizedRect | null {
+  const x = box.x / xScale;
+  const y = box.y / yScale;
+  const width = box.width / xScale;
+  const height = box.height / yScale;
 
-  const safeSw = Math.min(sw, imageWidth - sx);
-  const safeSh = Math.min(sh, imageHeight - sy);
-
-  if (safeSw <= 0 || safeSh <= 0) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  if (width <= 0 || height <= 0) {
     return null;
   }
 
-  return { sx, sy, sw: safeSw, sh: safeSh };
+  return { x, y, width, height };
+}
+
+function normalizeRectFromCenter(
+  box: BoundingBox,
+  xScale: number,
+  yScale: number,
+): NormalizedRect | null {
+  const centerX = box.x / xScale;
+  const centerY = box.y / yScale;
+  const width = box.width / xScale;
+  const height = box.height / yScale;
+
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerY) || !Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return {
+    x: centerX - width / 2,
+    y: centerY - height / 2,
+    width,
+    height,
+  };
+}
+
+function scoreNormalizedRect(rect: NormalizedRect): number {
+  if (rect.width <= 0 || rect.height <= 0) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const overflowX = Math.max(0, -(rect.x)) + Math.max(0, rect.x + rect.width - 1);
+  const overflowY = Math.max(0, -(rect.y)) + Math.max(0, rect.y + rect.height - 1);
+  const overflowPenalty = (overflowX + overflowY) * 3;
+
+  const clampedWidth = Math.max(0, Math.min(1, rect.x + rect.width) - Math.max(0, rect.x));
+  const clampedHeight = Math.max(0, Math.min(1, rect.y + rect.height) - Math.max(0, rect.y));
+  const area = clampedWidth * clampedHeight;
+  if (area <= 0) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  // Business card in a photo is usually not tiny and not full-screen.
+  const areaPenalty = Math.abs(area - 0.18) * 2.2 + (area < 0.01 ? 2 : 0) + (area > 0.95 ? 2 : 0);
+
+  return -(overflowPenalty + areaPenalty);
+}
+
+function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: number) {
+  const candidates = [
+    normalizeRectFromTopLeft(box, 1, 1),
+    normalizeRectFromTopLeft(box, 100, 100),
+    normalizeRectFromTopLeft(box, 1000, 1000),
+    normalizeRectFromTopLeft(box, imageWidth, imageHeight),
+    normalizeRectFromCenter(box, 1, 1),
+    normalizeRectFromCenter(box, 100, 100),
+    normalizeRectFromCenter(box, 1000, 1000),
+    normalizeRectFromCenter(box, imageWidth, imageHeight),
+  ].filter((rect): rect is NormalizedRect => rect !== null);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const best = candidates.reduce((bestRect, current) =>
+    scoreNormalizedRect(current) > scoreNormalizedRect(bestRect) ? current : bestRect,
+  );
+
+  // Small padding helps prevent text clipping on box edges.
+  const padding = 0.025;
+  const x1 = clamp01(best.x - padding);
+  const y1 = clamp01(best.y - padding);
+  const x2 = clamp01(best.x + best.width + padding);
+  const y2 = clamp01(best.y + best.height + padding);
+
+  const sx = Math.floor(x1 * imageWidth);
+  const sy = Math.floor(y1 * imageHeight);
+  const sw = Math.max(1, Math.floor((x2 - x1) * imageWidth));
+  const sh = Math.max(1, Math.floor((y2 - y1) * imageHeight));
+
+  if (sw < 12 || sh < 12) {
+    return null;
+  }
+
+  return {
+    sx,
+    sy,
+    sw: Math.min(sw, imageWidth - sx),
+    sh: Math.min(sh, imageHeight - sy),
+  };
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -171,6 +268,45 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error("Failed to load image for cropping."));
     img.src = url;
   });
+}
+
+async function optimizeImageForUpload(file: File): Promise<File> {
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(sourceUrl);
+    const maxSide = 2200;
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const targetWidth = Math.max(1, Math.round(img.width * scale));
+    const targetHeight = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return file;
+    }
+
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    let quality = 0.9;
+    let blob = await canvasToJpegBlob(canvas, quality);
+    const targetMaxBytes = 4 * 1024 * 1024;
+    while (blob && blob.size > targetMaxBytes && quality > 0.55) {
+      quality -= 0.1;
+      blob = await canvasToJpegBlob(canvas, quality);
+    }
+
+    if (!blob) {
+      return file;
+    }
+
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "card"}-optimized.jpg`, { type: "image/jpeg" });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }
 
 async function cropImageByBoundingBox(
@@ -229,13 +365,14 @@ export function CardCaptureClient() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const base64 = await fileToBase64(file);
+    const uploadFile = await optimizeImageForUpload(file);
+    const base64 = await fileToBase64(uploadFile);
     const previewUrl = URL.createObjectURL(file);
     if (selectedImage?.previewUrl) {
       URL.revokeObjectURL(selectedImage.previewUrl);
     }
 
-    setSelectedImage({ file, previewUrl, base64 });
+    setSelectedImage({ sourceName: file.name, uploadFile, previewUrl, base64 });
     setCards([emptyEditableCard()]);
     setActiveCardIndex(0);
     setExtractStatus("idle");
@@ -264,7 +401,7 @@ export function CardCaptureClient() {
 
     try {
       const formData = new FormData();
-      formData.append("image", selectedImage.file);
+      formData.append("image", selectedImage.uploadFile);
 
       const response = await fetch("/api/extract-business-card", {
         method: "POST",
@@ -280,7 +417,9 @@ export function CardCaptureClient() {
       const nextCards = await Promise.all(
         data.cards.map(async (card) => {
           const cropped =
-            card.boundingBox && selectedImage.file ? await cropImageByBoundingBox(selectedImage.file, card.boundingBox) : null;
+            card.boundingBox && selectedImage.uploadFile
+              ? await cropImageByBoundingBox(selectedImage.uploadFile, card.boundingBox)
+              : null;
 
           return {
             fields: {
@@ -338,7 +477,7 @@ export function CardCaptureClient() {
           imageMimeType: card.imageMimeType,
         })),
         imageBase64: selectedImage.base64,
-        imageMimeType: selectedImage.file.type || null,
+        imageMimeType: selectedImage.uploadFile.type || null,
       };
 
       const response = await fetch("/api/cards", {
@@ -404,7 +543,7 @@ export function CardCaptureClient() {
             htmlFor="business-card-image"
             className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600 hover:border-zinc-400"
           >
-            {selectedImage ? selectedImage.file.name : t.selectImage}
+            {selectedImage ? selectedImage.sourceName : t.selectImage}
           </label>
           <input id="business-card-image" type="file" accept="image/*" className="hidden" onChange={onSelectImage} />
 
