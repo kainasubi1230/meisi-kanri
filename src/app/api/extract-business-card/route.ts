@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import sharp from "sharp";
 
 import { getServerAuthSession } from "@/auth";
 import {
@@ -15,8 +16,9 @@ export const runtime = "nodejs";
 const supportedMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"]);
 const maxUploadBytes = 8 * 1024 * 1024;
 
-const extractionPrompt = `You are an OCR and data extraction engine for business cards.
-One uploaded image can include multiple business cards.
+const extractionPrompt = `You are an advanced OCR and data extraction engine specialized in business cards, particularly Japanese business cards (meishi).
+
+One uploaded image can include multiple business cards. Extract all visible business card information accurately.
 
 Return JSON only in this shape:
 {
@@ -54,11 +56,22 @@ Return JSON only in this shape:
 
 Rules:
 - Detect all visible business cards in the image and output one object per card.
-- Use null for unknown values.
-- boundingBox must represent top-left x/y plus width/height of the card region.
-- Prefer normalized 0..1 values relative to the full image. Do not return center-point coordinates.
-- confidence must be between 0.0 and 1.0.
-- Return raw JSON with no markdown or explanations.`;
+- For Japanese business cards, correctly identify kanji, hiragana, katakana names and company names.
+- Use null for unknown or unclear values.
+- For phone numbers, include country code if present, format as +81-xxxx-xxxx or similar.
+- For emails, ensure valid email format.
+- For addresses, include full address in Japanese if applicable.
+- For websites, include http:// or https:// if missing.
+- boundingBox must represent top-left x/y plus width/height of the card region in normalized 0..1 coordinates relative to the full image.
+- confidence must be between 0.0 and 1.0, reflecting your certainty in the extraction.
+- If multiple cards, ensure each has its own boundingBox.
+- Return raw JSON with no markdown, code blocks, or explanations.
+
+Examples:
+- fullName: "田中太郎" or "Tanaka Taro"
+- company: "株式会社ABC" or "ABC Corporation"
+- phone: "+81-3-1234-5678" or "03-1234-5678"
+- email: "taro.tanaka@abc.co.jp"`;
 
 function extractJsonCandidate(text: string): string {
   const fencedMatch = text.match(/```json\s*([\s\S]+?)```/i);
@@ -294,11 +307,22 @@ export async function POST(request: Request) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const base64Image = Buffer.from(arrayBuffer).toString("base64");
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Preprocess image for better OCR accuracy
+    const processedBuffer = await sharp(buffer)
+      .resize(2000, 2000, { withoutEnlargement: true }) // Resize to max 2000x2000
+      .greyscale() // Convert to grayscale
+      .normalise() // Normalize contrast
+      .sharpen() // Sharpen for better text recognition
+      .jpeg({ quality: 90 }) // Convert to JPEG with high quality
+      .toBuffer();
+
+    const base64Image = processedBuffer.toString("base64");
 
     const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const modelCandidates = Array.from(
-      new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.5-flash", "gemini-flash-lite-latest"]),
+      new Set([process.env.GEMINI_MODEL || "gemini-1.5-pro", "gemini-1.5-pro", "gemini-2.5-flash", "gemini-flash-lite-latest"]),
     );
 
     let result: Awaited<ReturnType<ReturnType<typeof client.getGenerativeModel>["generateContent"]>> | null = null;
@@ -311,7 +335,7 @@ export async function POST(request: Request) {
           {
             inlineData: {
               data: base64Image,
-              mimeType,
+              mimeType: "image/jpeg", // Processed image is JPEG
             },
           },
         ];
