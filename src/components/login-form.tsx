@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -130,12 +130,17 @@ export function LoginForm() {
   };
 
   return (
-    <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border border-white/70 bg-white/85 shadow-[0_20px_60px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+    <section className="surface mx-auto w-full max-w-5xl overflow-hidden">
       <div className="grid md:grid-cols-[1.05fr_1fr]">
-        <aside className="relative hidden overflow-hidden bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-500 p-8 text-white md:block">
+        <aside className="relative hidden overflow-hidden bg-gradient-to-br from-teal-800 via-teal-700 to-emerald-500 p-8 text-white md:block">
           <div className="absolute -right-20 -top-16 h-52 w-52 rounded-full bg-white/20 blur-2xl" />
           <div className="absolute -bottom-24 left-8 h-64 w-64 rounded-full bg-emerald-200/30 blur-3xl" />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.3em] text-teal-100">{t.appTitle}</p>
+          <div className="relative inline-flex items-center gap-2">
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 text-sm font-black tracking-tight">
+              MK
+            </span>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-100">{t.appTitle}</p>
+          </div>
           <h2 className="relative mt-6 text-3xl font-semibold leading-tight">{t.appLead}</h2>
           <p className="relative mt-4 text-sm text-teal-50/90">{t.appSubLead}</p>
           <ul className="relative mt-8 space-y-3 text-sm text-teal-50">
@@ -182,7 +187,7 @@ export function LoginForm() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                className="input py-2.5"
               />
             </div>
 
@@ -194,7 +199,7 @@ export function LoginForm() {
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                className="input py-2.5"
               />
             </div>
 
@@ -207,7 +212,7 @@ export function LoginForm() {
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                  className="input py-2.5"
                 />
               </div>
             ) : null}
@@ -215,13 +220,17 @@ export function LoginForm() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-2 w-full rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary mt-2 w-full py-2.5"
             >
               {isSubmitting ? (mode === "login" ? t.loggingIn : t.registering) : mode === "login" ? t.login : t.register}
             </button>
           </form>
 
-          {errorMessage ? <p className="mt-3 text-sm font-medium text-rose-600">{errorMessage}</p> : null}
+          {errorMessage ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 px-3 py-2 text-sm font-medium text-rose-700">
+              {errorMessage}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

@@ -528,9 +528,17 @@ export function CardCaptureClient() {
     setSaveStatus("idle");
   };
 
+  const steps = [
+    { id: "upload", label: locale === "ja" ? "アップロード" : "Upload", done: Boolean(selectedImage) },
+    { id: "extract", label: locale === "ja" ? "読み取り" : "Extract", done: extractStatus === "done" },
+    { id: "review", label: locale === "ja" ? "確認" : "Review", done: extractStatus === "done" && cardsReadyCount > 0 },
+    { id: "save", label: locale === "ja" ? "保存" : "Save", done: saveStatus === "saved" },
+  ] as const;
+  const activeStepIndex = steps.findIndex((s) => !s.done);
+
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <header className="rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_10px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-6">
+      <header className="surface p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Capture Workspace</p>
@@ -540,17 +548,46 @@ export function CardCaptureClient() {
             <LocaleToggle locale={locale} onChange={setLocale} />
             <Link
               href="/cards"
-              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"
+              className="btn-secondary"
             >
               {t.savedList}
             </Link>
             <LogoutButton />
           </div>
         </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          {steps.map((step, index) => {
+            const isActive = index === Math.max(0, activeStepIndex);
+            return (
+              <div key={step.id} className="flex items-center gap-3">
+                <div
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    step.done
+                      ? "border-emerald-200 bg-emerald-50/70 text-emerald-700"
+                      : isActive
+                        ? "border-teal-200 bg-teal-50/70 text-teal-800"
+                        : "border-zinc-200 bg-white/60 text-zinc-600"
+                  }`}
+                >
+                  <span
+                    className={`grid h-5 w-5 place-items-center rounded-full text-[11px] ${
+                      step.done ? "bg-emerald-600 text-white" : isActive ? "bg-teal-700 text-white" : "bg-zinc-200 text-zinc-700"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  {step.label}
+                </div>
+                {index < steps.length - 1 ? <span className="h-px w-6 bg-zinc-200/80" aria-hidden="true" /> : null}
+              </div>
+            );
+          })}
+        </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="surface-strong p-5">
           <h2 className="text-lg font-semibold text-zinc-900">{t.uploadTitle}</h2>
           <p className="mt-1 text-sm text-zinc-600">{t.uploadHint}</p>
 
@@ -572,13 +609,13 @@ export function CardCaptureClient() {
             type="button"
             onClick={runExtraction}
             disabled={extractStatus === "extracting"}
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary mt-4 w-full py-2.5"
           >
             {extractStatus === "extracting" ? t.extracting : t.extractButton}
           </button>
         </div>
 
-        <div className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="surface-strong p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-zinc-900">{t.reviewTitle}</h2>
             <p className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">{t.cardsAndFields(cards.length, activeFilledCount)}</p>
@@ -613,9 +650,7 @@ export function CardCaptureClient() {
                   id={key}
                   value={activeCard.fields[key] ?? ""}
                   onChange={(event) => updateField(activeCardIndex, key, event.target.value)}
-                  className={`rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 ${confidenceClass(
-                    activeCard.confidence[key],
-                  )}`}
+                  className={`input ${confidenceClass(activeCard.confidence[key])}`}
                 />
               </div>
             ))}
@@ -640,7 +675,7 @@ export function CardCaptureClient() {
             type="button"
             onClick={saveCards}
             disabled={saveStatus === "saving"}
-            className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary mt-5 w-full py-2.5"
           >
             {saveStatus === "saving" ? t.saving : t.saveAll(cardsReadyCount)}
           </button>

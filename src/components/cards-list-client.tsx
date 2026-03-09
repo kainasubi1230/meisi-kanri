@@ -71,6 +71,7 @@ const uiText = {
     introducedLabel: "紹介先",
     remove: "削除",
     introReadOnly: "このカードの紹介設定はオーナーのみ変更できます。",
+    noImage: "画像なし",
   },
   en: {
     title: "Saved Business Cards",
@@ -108,6 +109,7 @@ const uiText = {
     introducedLabel: "Introduced to",
     remove: "Remove",
     introReadOnly: "Only the owner can change introduction settings for this card.",
+    noImage: "No image",
   },
 } as const;
 
@@ -293,7 +295,7 @@ export function CardsListClient() {
 
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <header className="rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_10px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-6">
+      <header className="surface p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Cards Library</p>
@@ -303,7 +305,7 @@ export function CardsListClient() {
             <LocaleToggle locale={locale} onChange={setLocale} />
             <Link
               href="/capture"
-              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"
+              className="btn-secondary"
             >
               {t.toCapture}
             </Link>
@@ -312,7 +314,7 @@ export function CardsListClient() {
         </div>
       </header>
 
-      <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5">
+      <div className="surface-strong p-4 sm:p-5">
         <h2 className="text-base font-semibold text-zinc-900">{t.accountShareTitle}</h2>
         <p className="mt-1 text-sm text-zinc-600">{t.accountShareHint}</p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -320,13 +322,13 @@ export function CardsListClient() {
             value={accountShareInput}
             onChange={(event) => setAccountShareInput(event.target.value)}
             placeholder={t.accountSharePlaceholder}
-            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+            className="input"
           />
           <button
             type="button"
             onClick={() => void addAccountShare()}
             disabled={accountShareBusy}
-            className="rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary px-4"
           >
             {accountShareBusy ? t.introducing : t.accountShareButton}
           </button>
@@ -384,18 +386,18 @@ export function CardsListClient() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t.searchPlaceholder}
-          className="w-full rounded-xl border border-zinc-300 bg-white/90 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+          className="input"
         />
         <button
           type="submit"
-          className="rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:brightness-110"
+          className="btn-primary px-4"
         >
           {t.search}
         </button>
       </form>
 
       {isLoading ? (
-        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="surface p-5">
           <div className="animate-pulse space-y-3">
             <div className="h-4 w-44 rounded bg-zinc-200/70" />
             <div className="h-3 w-80 max-w-full rounded bg-zinc-200/50" />
@@ -404,22 +406,22 @@ export function CardsListClient() {
           <p className="mt-4 text-sm text-zinc-600">{t.loading}</p>
         </div>
       ) : error ? (
-        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="surface p-5">
           <p className="text-sm font-medium text-rose-600">{error}</p>
           <button
             type="button"
             onClick={() => void fetchAll(query)}
-            className="mt-3 rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:brightness-110"
+            className="btn-primary mt-3 px-4"
           >
             {t.retry}
           </button>
         </div>
       ) : cards.length === 0 ? (
-        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+        <div className="surface p-5">
           <p className="text-sm text-zinc-700">{t.empty}</p>
           <Link
             href="/capture"
-            className="mt-3 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110"
+            className="btn-primary mt-3 px-4"
           >
             {t.toCapture}
           </Link>
@@ -430,133 +432,145 @@ export function CardsListClient() {
         {cards.map((card) => (
           <article
             key={card.id}
-            className="rounded-3xl border border-white/70 bg-white/90 p-4 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5"
+            className="surface-strong p-4 sm:p-5"
           >
-            {card.imageBase64 && card.imageMimeType ? (
-              <div className="relative mb-3 h-44 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
-                <Image
-                  src={`data:${card.imageMimeType};base64,${card.imageBase64}`}
-                  alt={card.fullName ? `${card.fullName} business card` : "business card image"}
-                  fill
-                  unoptimized
-                  className="object-contain"
-                />
-              </div>
-            ) : null}
-
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  card.accessType === "owner"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : card.accessType === "account_shared"
-                      ? "bg-sky-100 text-sky-700"
-                      : "bg-amber-100 text-amber-700"
-                }`}
-              >
-                {card.accessType === "owner"
-                  ? t.ownerBadge
-                  : card.accessType === "account_shared"
-                    ? t.accountSharedBadge
-                    : t.cardSharedBadge}
-              </span>
-              {card.accessType !== "owner" ? <span className="text-xs text-zinc-500">{t.sharedFrom(card.ownerUserId)}</span> : null}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">{card.fullName || t.nameFallback}</h2>
-              <time className="text-xs text-zinc-500">
-                {new Date(card.createdAt).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </time>
-            </div>
-
-            <p className="mt-1 text-sm text-zinc-700">
-              {[card.company, card.department, card.title].filter(Boolean).join(" / ") || t.companyFallback}
-            </p>
-
-            <div className="mt-3 grid gap-1 text-sm text-zinc-600 sm:grid-cols-2">
-              <p>
-                {t.email}: {card.email || "-"}
-              </p>
-              <p>
-                {t.phone}: {card.phone || "-"}
-              </p>
-              <p>
-                {t.address}: {card.address || "-"}
-              </p>
-              <p>
-                {t.website}: {card.website || "-"}
-              </p>
-            </div>
-
-            {card.memo ? <p className="mt-3 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700">{card.memo}</p> : null}
-
-            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
-              <p className="text-sm font-semibold text-zinc-800">{t.introductionTitle}</p>
-              <p className="mt-1 text-xs text-zinc-600">{t.introductionHint}</p>
-
-              {card.accessType === "owner" ? (
-                <>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={introInputs[card.id] || ""}
-                      onChange={(event) =>
-                        setIntroInputs((prev) => ({
-                          ...prev,
-                          [card.id]: event.target.value,
-                        }))
-                      }
-                      placeholder={t.introductionPlaceholder}
-                      className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+            <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                {card.imageBase64 && card.imageMimeType ? (
+                  <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+                    <Image
+                      src={`data:${card.imageMimeType};base64,${card.imageBase64}`}
+                      alt={card.fullName ? `${card.fullName} business card` : "business card image"}
+                      fill
+                      unoptimized
+                      className="object-contain"
                     />
-                    <button
-                      type="button"
-                      onClick={() => void addIntroduction(card.id)}
-                      disabled={introBusyCardId === card.id}
-                      className="rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {introBusyCardId === card.id ? t.introducing : t.introductionButton}
-                    </button>
                   </div>
-
-                  <div className="mt-3">
-                    <p className="mb-1 text-xs text-zinc-600">{t.introducedLabel}</p>
-                    {card.sharedWith.length === 0 ? (
-                      <p className="text-xs text-zinc-500">-</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {card.sharedWith.map((email) => (
-                          <span
-                            key={`${card.id}-${email}`}
-                            className="inline-flex items-center gap-1 rounded-full border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700"
-                          >
-                            {email}
-                            <button
-                              type="button"
-                              onClick={() => void removeIntroduction(card.id, email)}
-                              disabled={introBusyCardId === card.id}
-                              className="rounded px-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
-                            >
-                              {t.remove}
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                ) : (
+                  <div className="grid h-44 w-full place-items-center rounded-2xl border border-dashed border-zinc-200 bg-white/60 text-xs font-medium text-zinc-500">
+                    {t.noImage}
                   </div>
-                </>
-              ) : (
-                <p className="mt-2 text-xs text-zinc-600">{card.accessType === "account_shared" ? t.accountShareReadOnly : t.introReadOnly}</p>
-              )}
+                )}
 
-              {introMessageByCardId[card.id] ? (
-                <p className={`mt-2 text-xs font-medium ${messageTone(introMessageByCardId[card.id]!.kind)}`}>
-                  {introMessageByCardId[card.id]!.text}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      card.accessType === "owner"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : card.accessType === "account_shared"
+                          ? "bg-sky-100 text-sky-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {card.accessType === "owner"
+                      ? t.ownerBadge
+                      : card.accessType === "account_shared"
+                        ? t.accountSharedBadge
+                        : t.cardSharedBadge}
+                  </span>
+                  {card.accessType !== "owner" ? <span className="text-xs text-zinc-500">{t.sharedFrom(card.ownerUserId)}</span> : null}
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="truncate text-base font-semibold text-zinc-900">{card.fullName || t.nameFallback}</h2>
+                  <time className="text-xs text-zinc-500">
+                    {new Date(card.createdAt).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </time>
+                </div>
+
+                <p className="mt-1 text-sm text-zinc-700">
+                  {[card.company, card.department, card.title].filter(Boolean).join(" / ") || t.companyFallback}
                 </p>
-              ) : null}
+
+                <div className="mt-3 grid gap-1 text-sm text-zinc-600 sm:grid-cols-2">
+                  <p className="truncate">
+                    {t.email}: {card.email || "-"}
+                  </p>
+                  <p className="truncate">
+                    {t.phone}: {card.phone || "-"}
+                  </p>
+                  <p className="truncate">
+                    {t.address}: {card.address || "-"}
+                  </p>
+                  <p className="truncate">
+                    {t.website}: {card.website || "-"}
+                  </p>
+                </div>
+
+                {card.memo ? <p className="mt-3 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700">{card.memo}</p> : null}
+
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
+                  <p className="text-sm font-semibold text-zinc-800">{t.introductionTitle}</p>
+                  <p className="mt-1 text-xs text-zinc-600">{t.introductionHint}</p>
+
+                  {card.accessType === "owner" ? (
+                    <>
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={introInputs[card.id] || ""}
+                          onChange={(event) =>
+                            setIntroInputs((prev) => ({
+                              ...prev,
+                              [card.id]: event.target.value,
+                            }))
+                          }
+                          placeholder={t.introductionPlaceholder}
+                          className="input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void addIntroduction(card.id)}
+                          disabled={introBusyCardId === card.id}
+                          className="btn-primary px-3"
+                        >
+                          {introBusyCardId === card.id ? t.introducing : t.introductionButton}
+                        </button>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="mb-1 text-xs text-zinc-600">{t.introducedLabel}</p>
+                        {card.sharedWith.length === 0 ? (
+                          <p className="text-xs text-zinc-500">-</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {card.sharedWith.map((email) => (
+                              <span
+                                key={`${card.id}-${email}`}
+                                className="inline-flex items-center gap-1 rounded-full border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700"
+                              >
+                                {email}
+                                <button
+                                  type="button"
+                                  onClick={() => void removeIntroduction(card.id, email)}
+                                  disabled={introBusyCardId === card.id}
+                                  className="rounded px-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
+                                >
+                                  {t.remove}
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs text-zinc-600">
+                      {card.accessType === "account_shared" ? t.accountShareReadOnly : t.introReadOnly}
+                    </p>
+                  )}
+
+                  {introMessageByCardId[card.id] ? (
+                    <p className={`mt-2 text-xs font-medium ${messageTone(introMessageByCardId[card.id]!.kind)}`}>
+                      {introMessageByCardId[card.id]!.text}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </article>
         ))}
