@@ -32,12 +32,15 @@ type AccountShareResponse = {
   sharedBy: string[];
 };
 
+type MessageKind = "success" | "error";
+
 const uiText = {
   ja: {
     title: "保存済み名刺",
     toCapture: "取り込み画面へ",
     searchPlaceholder: "氏名・会社名・メールで検索",
     search: "検索",
+    retry: "再読み込み",
     loading: "読み込み中...",
     fetchError: "一覧の取得に失敗しました。",
     empty: "まだ名刺データがありません。",
@@ -48,32 +51,33 @@ const uiText = {
     address: "住所",
     website: "Web",
     ownerBadge: "自分の名刺",
-    accountSharedBadge: "共有データ",
-    cardSharedBadge: "紹介データ",
+    accountSharedBadge: "アカウント共有",
+    cardSharedBadge: "紹介カード",
     sharedFrom: (owner: string) => `共有元: ${owner}`,
     accountShareTitle: "共有（アカウント全体）",
-    accountShareHint: "この設定で、あなたの名刺データ全体を他アカウントに共有します。",
+    accountShareHint: "この設定で、あなたの全名刺データを指定アカウントへ共有できます。",
     accountSharePlaceholder: "共有先メールアドレス",
     accountShareButton: "共有する",
-    accountSharedWithLabel: "全体共有先",
-    accountSharedByLabel: "あなたに全体共有しているアカウント",
-    accountShareReadOnly: "この名刺は共有データです。全体共有の設定変更は共有元が行います。",
-    accountShareSuccess: "全体共有設定を更新しました。",
-    accountShareError: "全体共有設定の更新に失敗しました。",
+    accountSharedWithLabel: "共有先",
+    accountSharedByLabel: "あなたに共有中のアカウント",
+    accountShareReadOnly: "このカードはアカウント共有で閲覧しています。設定変更はオーナーのみ可能です。",
+    accountShareSuccess: "共有設定を更新しました。",
+    accountShareError: "共有設定の更新に失敗しました。",
     introductionTitle: "紹介（カード単位）",
     introductionHint: "この名刺だけを個別に共有します。",
     introductionPlaceholder: "紹介先メールアドレス",
     introductionButton: "紹介する",
     introducing: "更新中...",
     introducedLabel: "紹介先",
-    remove: "解除",
-    introReadOnly: "この名刺の紹介設定は所有者のみ変更できます。",
+    remove: "削除",
+    introReadOnly: "このカードの紹介設定はオーナーのみ変更できます。",
   },
   en: {
     title: "Saved Business Cards",
     toCapture: "Go to capture",
     searchPlaceholder: "Search by name, company, email",
     search: "Search",
+    retry: "Retry",
     loading: "Loading...",
     fetchError: "Failed to fetch card list.",
     empty: "No cards yet.",
@@ -87,15 +91,15 @@ const uiText = {
     accountSharedBadge: "Account shared",
     cardSharedBadge: "Card introduced",
     sharedFrom: (owner: string) => `From: ${owner}`,
-    accountShareTitle: "Share (entire account data)",
+    accountShareTitle: "Share (entire account)",
     accountShareHint: "This shares all cards in your account with another account.",
     accountSharePlaceholder: "Recipient email",
     accountShareButton: "Share",
     accountSharedWithLabel: "Shared with",
-    accountSharedByLabel: "Sharing with you",
-    accountShareReadOnly: "This card is from an account share. Only the owner can change account sharing.",
-    accountShareSuccess: "Account share settings updated.",
-    accountShareError: "Failed to update account share settings.",
+    accountSharedByLabel: "Shared to you by",
+    accountShareReadOnly: "This card comes from account sharing. Only the owner can change account share settings.",
+    accountShareSuccess: "Share settings updated.",
+    accountShareError: "Failed to update share settings.",
     introductionTitle: "Introduction (single card)",
     introductionHint: "Share only this specific card.",
     introductionPlaceholder: "Recipient email",
@@ -119,11 +123,15 @@ export function CardsListClient() {
 
   const [accountShareInput, setAccountShareInput] = useState("");
   const [accountShareBusy, setAccountShareBusy] = useState(false);
-  const [accountShareMessage, setAccountShareMessage] = useState<string>("");
+  const [accountShareMessage, setAccountShareMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
 
   const [introInputs, setIntroInputs] = useState<Record<string, string>>({});
   const [introBusyCardId, setIntroBusyCardId] = useState<string | null>(null);
-  const [introMessageByCardId, setIntroMessageByCardId] = useState<Record<string, string>>({});
+  const [introMessageByCardId, setIntroMessageByCardId] = useState<
+    Record<string, { kind: MessageKind; text: string } | null>
+  >({});
+
+  const messageTone = (kind: MessageKind) => (kind === "success" ? "text-emerald-700" : "text-rose-600");
 
   const fetchCards = async (keyword: string) => {
     const params = new URLSearchParams();
@@ -180,7 +188,7 @@ export function CardsListClient() {
     if (!email) return;
 
     setAccountShareBusy(true);
-    setAccountShareMessage("");
+    setAccountShareMessage(null);
     try {
       const response = await fetch("/api/account-shares", {
         method: "POST",
@@ -194,10 +202,10 @@ export function CardsListClient() {
       }
 
       setAccountShareInput("");
-      setAccountShareMessage(t.accountShareSuccess);
+      setAccountShareMessage({ kind: "success", text: t.accountShareSuccess });
       await fetchAll(query);
     } catch (e) {
-      setAccountShareMessage(e instanceof Error ? e.message : t.accountShareError);
+      setAccountShareMessage({ kind: "error", text: e instanceof Error ? e.message : t.accountShareError });
     } finally {
       setAccountShareBusy(false);
     }
@@ -205,7 +213,7 @@ export function CardsListClient() {
 
   const removeAccountShare = async (email: string) => {
     setAccountShareBusy(true);
-    setAccountShareMessage("");
+    setAccountShareMessage(null);
     try {
       const response = await fetch("/api/account-shares", {
         method: "DELETE",
@@ -218,10 +226,10 @@ export function CardsListClient() {
         throw new Error(body?.error || t.accountShareError);
       }
 
-      setAccountShareMessage(t.accountShareSuccess);
+      setAccountShareMessage({ kind: "success", text: t.accountShareSuccess });
       await fetchAll(query);
     } catch (e) {
-      setAccountShareMessage(e instanceof Error ? e.message : t.accountShareError);
+      setAccountShareMessage({ kind: "error", text: e instanceof Error ? e.message : t.accountShareError });
     } finally {
       setAccountShareBusy(false);
     }
@@ -232,7 +240,7 @@ export function CardsListClient() {
     if (!email) return;
 
     setIntroBusyCardId(cardId);
-    setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: "" }));
+    setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: null }));
     try {
       const response = await fetch(`/api/cards/${cardId}/shares`, {
         method: "POST",
@@ -245,10 +253,13 @@ export function CardsListClient() {
       }
 
       setIntroInputs((prev) => ({ ...prev, [cardId]: "" }));
-      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: t.accountShareSuccess }));
+      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: { kind: "success", text: t.accountShareSuccess } }));
       await fetchAll(query);
     } catch (e) {
-      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: e instanceof Error ? e.message : t.accountShareError }));
+      setIntroMessageByCardId((prev) => ({
+        ...prev,
+        [cardId]: { kind: "error", text: e instanceof Error ? e.message : t.accountShareError },
+      }));
     } finally {
       setIntroBusyCardId(null);
     }
@@ -256,7 +267,7 @@ export function CardsListClient() {
 
   const removeIntroduction = async (cardId: string, email: string) => {
     setIntroBusyCardId(cardId);
-    setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: "" }));
+    setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: null }));
     try {
       const response = await fetch(`/api/cards/${cardId}/shares`, {
         method: "DELETE",
@@ -268,51 +279,62 @@ export function CardsListClient() {
         throw new Error(body?.error || t.accountShareError);
       }
 
-      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: t.accountShareSuccess }));
+      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: { kind: "success", text: t.accountShareSuccess } }));
       await fetchAll(query);
     } catch (e) {
-      setIntroMessageByCardId((prev) => ({ ...prev, [cardId]: e instanceof Error ? e.message : t.accountShareError }));
+      setIntroMessageByCardId((prev) => ({
+        ...prev,
+        [cardId]: { kind: "error", text: e instanceof Error ? e.message : t.accountShareError },
+      }));
     } finally {
       setIntroBusyCardId(null);
     }
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900 sm:text-3xl">{t.title}</h1>
-        <div className="flex items-center gap-2">
-          <LocaleToggle locale={locale} onChange={setLocale} />
-          <Link href="/capture" className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-            {t.toCapture}
-          </Link>
-          <LogoutButton />
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8">
+      <header className="rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_10px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Cards Library</p>
+            <h1 className="mt-1 text-2xl font-semibold text-zinc-900 sm:text-3xl">{t.title}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <LocaleToggle locale={locale} onChange={setLocale} />
+            <Link
+              href="/capture"
+              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"
+            >
+              {t.toCapture}
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5">
         <h2 className="text-base font-semibold text-zinc-900">{t.accountShareTitle}</h2>
         <p className="mt-1 text-sm text-zinc-600">{t.accountShareHint}</p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
             value={accountShareInput}
             onChange={(event) => setAccountShareInput(event.target.value)}
             placeholder={t.accountSharePlaceholder}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
           />
           <button
             type="button"
             onClick={() => void addAccountShare()}
             disabled={accountShareBusy}
-            className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {accountShareBusy ? t.introducing : t.accountShareButton}
           </button>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <p className="mb-1 text-xs text-zinc-600">{t.accountSharedWithLabel}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-600">{t.accountSharedWithLabel}</p>
             {accountShare.sharedWith.length === 0 ? (
               <p className="text-xs text-zinc-500">-</p>
             ) : (
@@ -327,7 +349,7 @@ export function CardsListClient() {
                       type="button"
                       onClick={() => void removeAccountShare(email)}
                       disabled={accountShareBusy}
-                      className="rounded px-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                      className="rounded px-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
                     >
                       {t.remove}
                     </button>
@@ -337,8 +359,8 @@ export function CardsListClient() {
             )}
           </div>
 
-          <div>
-            <p className="mb-1 text-xs text-zinc-600">{t.accountSharedByLabel}</p>
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-600">{t.accountSharedByLabel}</p>
             {accountShare.sharedBy.length === 0 ? (
               <p className="text-xs text-zinc-500">-</p>
             ) : (
@@ -352,30 +374,66 @@ export function CardsListClient() {
             )}
           </div>
         </div>
-        {accountShareMessage ? <p className="mt-2 text-xs text-zinc-600">{accountShareMessage}</p> : null}
+        {accountShareMessage ? (
+          <p className={`mt-2 text-xs font-medium ${messageTone(accountShareMessage.kind)}`}>{accountShareMessage.text}</p>
+        ) : null}
       </div>
 
-      <form onSubmit={onSubmit} className="flex gap-2">
+      <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t.searchPlaceholder}
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500"
+          className="w-full rounded-xl border border-zinc-300 bg-white/90 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
         />
-        <button type="submit" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+        <button
+          type="submit"
+          className="rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:brightness-110"
+        >
           {t.search}
         </button>
       </form>
 
-      {isLoading ? <p className="text-sm text-zinc-500">{t.loading}</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {!isLoading && !error && cards.length === 0 ? <p className="text-sm text-zinc-500">{t.empty}</p> : null}
+      {isLoading ? (
+        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="animate-pulse space-y-3">
+            <div className="h-4 w-44 rounded bg-zinc-200/70" />
+            <div className="h-3 w-80 max-w-full rounded bg-zinc-200/50" />
+            <div className="h-3 w-72 max-w-full rounded bg-zinc-200/40" />
+          </div>
+          <p className="mt-4 text-sm text-zinc-600">{t.loading}</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+          <p className="text-sm font-medium text-rose-600">{error}</p>
+          <button
+            type="button"
+            onClick={() => void fetchAll(query)}
+            className="mt-3 rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:brightness-110"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+          <p className="text-sm text-zinc-700">{t.empty}</p>
+          <Link
+            href="/capture"
+            className="mt-3 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110"
+          >
+            {t.toCapture}
+          </Link>
+        </div>
+      ) : null}
 
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {cards.map((card) => (
-          <article key={card.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <article
+            key={card.id}
+            className="rounded-3xl border border-white/70 bg-white/90 p-4 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5"
+          >
             {card.imageBase64 && card.imageMimeType ? (
-              <div className="relative mb-3 h-40 w-full overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+              <div className="relative mb-3 h-44 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
                 <Image
                   src={`data:${card.imageMimeType};base64,${card.imageBase64}`}
                   alt={card.fullName ? `${card.fullName} business card` : "business card image"}
@@ -388,7 +446,7 @@ export function CardsListClient() {
 
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span
-                className={`rounded-full px-2 py-0.5 text-xs ${
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   card.accessType === "owner"
                     ? "bg-emerald-100 text-emerald-700"
                     : card.accessType === "account_shared"
@@ -406,7 +464,7 @@ export function CardsListClient() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-medium text-zinc-900">{card.fullName || t.nameFallback}</h2>
+              <h2 className="text-base font-semibold text-zinc-900">{card.fullName || t.nameFallback}</h2>
               <time className="text-xs text-zinc-500">
                 {new Date(card.createdAt).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", {
                   dateStyle: "medium",
@@ -434,15 +492,15 @@ export function CardsListClient() {
               </p>
             </div>
 
-            {card.memo ? <p className="mt-3 rounded bg-zinc-50 px-2 py-1 text-sm text-zinc-700">{card.memo}</p> : null}
+            {card.memo ? <p className="mt-3 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700">{card.memo}</p> : null}
 
-            <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <p className="text-sm font-medium text-zinc-800">{t.introductionTitle}</p>
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
+              <p className="text-sm font-semibold text-zinc-800">{t.introductionTitle}</p>
               <p className="mt-1 text-xs text-zinc-600">{t.introductionHint}</p>
 
               {card.accessType === "owner" ? (
                 <>
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                     <input
                       value={introInputs[card.id] || ""}
                       onChange={(event) =>
@@ -452,13 +510,13 @@ export function CardsListClient() {
                         }))
                       }
                       placeholder={t.introductionPlaceholder}
-                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                      className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     />
                     <button
                       type="button"
                       onClick={() => void addIntroduction(card.id)}
                       disabled={introBusyCardId === card.id}
-                      className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl bg-gradient-to-r from-zinc-900 to-zinc-700 px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {introBusyCardId === card.id ? t.introducing : t.introductionButton}
                     </button>
@@ -480,7 +538,7 @@ export function CardsListClient() {
                               type="button"
                               onClick={() => void removeIntroduction(card.id, email)}
                               disabled={introBusyCardId === card.id}
-                              className="rounded px-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                              className="rounded px-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700"
                             >
                               {t.remove}
                             </button>
@@ -494,7 +552,11 @@ export function CardsListClient() {
                 <p className="mt-2 text-xs text-zinc-600">{card.accessType === "account_shared" ? t.accountShareReadOnly : t.introReadOnly}</p>
               )}
 
-              {introMessageByCardId[card.id] ? <p className="mt-2 text-xs text-zinc-600">{introMessageByCardId[card.id]}</p> : null}
+              {introMessageByCardId[card.id] ? (
+                <p className={`mt-2 text-xs font-medium ${messageTone(introMessageByCardId[card.id]!.kind)}`}>
+                  {introMessageByCardId[card.id]!.text}
+                </p>
+              ) : null}
             </div>
           </article>
         ))}
@@ -502,3 +564,4 @@ export function CardsListClient() {
     </section>
   );
 }
+

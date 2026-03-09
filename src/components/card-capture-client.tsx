@@ -38,22 +38,22 @@ const fieldKeys = Object.keys(emptyBusinessCardFields) as Array<keyof BusinessCa
 
 const uiText = {
   ja: {
-    title: "名刺電子化アプリ",
-    savedList: "保存済み一覧へ",
-    uploadTitle: "1. 画像アップロード",
-    uploadHint: "1枚の画像に複数名刺があっても抽出できます。",
+    title: "名刺デジタル化ワークスペース",
+    savedList: "保存済み一覧",
+    uploadTitle: "1. 画像をアップロード",
+    uploadHint: "1枚の画像に複数の名刺があってもまとめて処理できます。",
     selectImage: "画像を選択",
     extracting: "抽出中...",
-    extractButton: "2. AIで読み取る",
-    reviewTitle: "3. 抽出結果の確認",
-    cardsAndFields: (cards: number, fields: number) => `名刺: ${cards} / 入力済み: ${fields} / 9`,
+    extractButton: "2. AIで読み取り",
+    reviewTitle: "3. 抽出結果を確認",
+    cardsAndFields: (cards: number, fields: number) => `名刺 ${cards} 枚 / 入力済み ${fields} / 9`,
     cardTab: (index: number) => `名刺 ${index}`,
-    croppedPreviewLabel: "この名刺の自動トリミング画像",
+    croppedPreviewLabel: "自動トリミング画像",
     saving: "保存中...",
     saveAll: (count: number) => `4. ${count}件をDBに保存`,
-    saved: (count: number) => `${count}件保存しました。`,
+    saved: (count: number) => `${count}件を保存しました。`,
     errSelectImage: "先に画像を選択してください。",
-    errExtraction: "抽出に失敗しました。",
+    errExtraction: "読み取りに失敗しました。",
     errNoData: "保存できる名刺データがありません。",
     errSave: "保存に失敗しました。",
     fieldLabels: {
@@ -69,20 +69,20 @@ const uiText = {
     } as Record<keyof BusinessCardFields, string>,
   },
   en: {
-    title: "Business Card Digitizer",
-    savedList: "Go to saved list",
+    title: "Business Card Workspace",
+    savedList: "Saved cards",
     uploadTitle: "1. Upload image",
-    uploadHint: "One image can include multiple cards.",
+    uploadHint: "You can process multiple cards from one image.",
     selectImage: "Select image",
     extracting: "Extracting...",
     extractButton: "2. Extract with AI",
     reviewTitle: "3. Review extracted cards",
-    cardsAndFields: (cards: number, fields: number) => `Cards: ${cards} / Active fields: ${fields} / 9`,
+    cardsAndFields: (cards: number, fields: number) => `Cards ${cards} / Filled ${fields} / 9`,
     cardTab: (index: number) => `Card ${index}`,
-    croppedPreviewLabel: "Auto-cropped image for this card",
+    croppedPreviewLabel: "Auto-cropped preview",
     saving: "Saving...",
-    saveAll: (count: number) => `4. Save all (${count}) to DB`,
-    saved: (count: number) => `Saved ${count} records.`,
+    saveAll: (count: number) => `4. Save ${count} record(s) to DB`,
+    saved: (count: number) => `Saved ${count} record(s).`,
     errSelectImage: "Select an image first.",
     errExtraction: "Extraction failed.",
     errNoData: "No card data to save.",
@@ -360,6 +360,13 @@ export function CardCaptureClient() {
     () => Object.values(activeCard.fields).filter((value) => value && value.trim().length > 0).length,
     [activeCard.fields],
   );
+  const cardsReadyCount = useMemo(
+    () =>
+      cards.filter((card) =>
+        Object.values(card.fields).some((value) => typeof value === "string" && value.trim().length > 0),
+      ).length,
+    [cards],
+  );
 
   const onSelectImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -522,33 +529,41 @@ export function CardCaptureClient() {
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900 sm:text-3xl">{t.title}</h1>
-        <div className="flex items-center gap-2">
-          <LocaleToggle locale={locale} onChange={setLocale} />
-          <Link href="/cards" className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-            {t.savedList}
-          </Link>
-          <LogoutButton />
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8">
+      <header className="rounded-3xl border border-white/60 bg-white/80 p-5 shadow-[0_10px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Capture Workspace</p>
+            <h1 className="mt-1 text-2xl font-semibold text-zinc-900 sm:text-3xl">{t.title}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <LocaleToggle locale={locale} onChange={setLocale} />
+            <Link
+              href="/cards"
+              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"
+            >
+              {t.savedList}
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-medium text-zinc-900">{t.uploadTitle}</h2>
-          <p className="mt-1 text-sm text-zinc-500">{t.uploadHint}</p>
+        <div className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
+          <h2 className="text-lg font-semibold text-zinc-900">{t.uploadTitle}</h2>
+          <p className="mt-1 text-sm text-zinc-600">{t.uploadHint}</p>
 
           <label
             htmlFor="business-card-image"
-            className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-600 hover:border-zinc-400"
+            className="mt-4 flex min-h-32 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-gradient-to-br from-zinc-100 to-zinc-50 px-4 py-6 text-center text-sm font-medium text-zinc-600 transition hover:border-teal-400 hover:text-zinc-800"
           >
             {selectedImage ? selectedImage.sourceName : t.selectImage}
           </label>
           <input id="business-card-image" type="file" accept="image/*" className="hidden" onChange={onSelectImage} />
 
           {selectedImage ? (
-            <div className="relative mt-4 h-60 w-full overflow-hidden rounded-md border border-zinc-200 bg-white">
+            <div className="relative mt-4 h-60 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white">
               <Image src={selectedImage.previewUrl} alt="selected business card" fill unoptimized className="object-contain" />
             </div>
           ) : null}
@@ -557,16 +572,16 @@ export function CardCaptureClient() {
             type="button"
             onClick={runExtraction}
             disabled={extractStatus === "extracting"}
-            className="mt-4 w-full rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-4 w-full rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {extractStatus === "extracting" ? t.extracting : t.extractButton}
           </button>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-[0_12px_42px_-20px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-medium text-zinc-900">{t.reviewTitle}</h2>
-            <p className="text-sm text-zinc-500">{t.cardsAndFields(cards.length, activeFilledCount)}</p>
+            <h2 className="text-lg font-semibold text-zinc-900">{t.reviewTitle}</h2>
+            <p className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">{t.cardsAndFields(cards.length, activeFilledCount)}</p>
           </div>
 
           {cards.length > 1 ? (
@@ -576,9 +591,9 @@ export function CardCaptureClient() {
                   key={`card-tab-${index}`}
                   type="button"
                   onClick={() => setActiveCardIndex(index)}
-                  className={`rounded-md border px-3 py-1.5 text-sm ${
+                  className={`rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
                     index === activeCardIndex
-                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      ? "border-teal-700 bg-teal-700 text-white shadow"
                       : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
                   }`}
                 >
@@ -591,14 +606,14 @@ export function CardCaptureClient() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {fieldKeys.map((key) => (
               <div key={key} className="flex flex-col gap-1">
-                <label htmlFor={key} className="text-sm text-zinc-700">
+                <label htmlFor={key} className="text-sm font-medium text-zinc-700">
                   {t.fieldLabels[key]}
                 </label>
                 <input
                   id={key}
                   value={activeCard.fields[key] ?? ""}
                   onChange={(event) => updateField(activeCardIndex, key, event.target.value)}
-                  className={`rounded-md border px-3 py-2 text-sm outline-none transition focus:border-zinc-500 ${confidenceClass(
+                  className={`rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 ${confidenceClass(
                     activeCard.confidence[key],
                   )}`}
                 />
@@ -607,9 +622,9 @@ export function CardCaptureClient() {
           </div>
 
           {activeCard.imageBase64 && activeCard.imageMimeType ? (
-            <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-2">
-              <p className="mb-2 text-xs text-zinc-600">{t.croppedPreviewLabel}</p>
-              <div className="relative h-32 w-full overflow-hidden rounded border border-zinc-200 bg-white">
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-2.5">
+              <p className="mb-2 text-xs font-medium text-zinc-600">{t.croppedPreviewLabel}</p>
+              <div className="relative h-32 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white">
                 <Image
                   src={`data:${activeCard.imageMimeType};base64,${activeCard.imageBase64}`}
                   alt={`card-${activeCardIndex + 1}-crop`}
@@ -625,15 +640,16 @@ export function CardCaptureClient() {
             type="button"
             onClick={saveCards}
             disabled={saveStatus === "saving"}
-            className="mt-5 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saveStatus === "saving" ? t.saving : t.saveAll(cards.length)}
+            {saveStatus === "saving" ? t.saving : t.saveAll(cardsReadyCount)}
           </button>
 
-          {saveStatus === "saved" ? <p className="mt-3 text-sm text-emerald-700">{t.saved(savedCount)}</p> : null}
-          {errorMessage ? <p className="mt-3 text-sm text-red-600">{errorMessage}</p> : null}
+          {saveStatus === "saved" ? <p className="mt-3 text-sm font-medium text-emerald-700">{t.saved(savedCount)}</p> : null}
+          {errorMessage ? <p className="mt-3 text-sm font-medium text-rose-600">{errorMessage}</p> : null}
         </div>
       </div>
     </section>
   );
 }
+

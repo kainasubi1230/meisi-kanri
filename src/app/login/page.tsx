@@ -12,7 +12,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_#f4f4f5,_#fafaf9_55%)] px-4">
+    <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
       <LoginForm />
     </main>
   );

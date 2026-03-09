@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { UiLocale } from "@/lib/ui-locale";
 
@@ -9,12 +9,12 @@ type LocaleToggleProps = {
 
 export function LocaleToggle({ locale, onChange }: LocaleToggleProps) {
   return (
-    <div className="inline-flex rounded-md border border-zinc-300 bg-white p-1">
+    <div className="inline-flex rounded-xl border border-zinc-200 bg-white p-1 shadow-sm">
       <button
         type="button"
         onClick={() => onChange("ja")}
-        className={`rounded px-3 py-1 text-xs font-medium ${
-          locale === "ja" ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+          locale === "ja" ? "bg-teal-700 text-white" : "text-zinc-600 hover:bg-zinc-100"
         }`}
       >
         日本語
@@ -22,8 +22,8 @@ export function LocaleToggle({ locale, onChange }: LocaleToggleProps) {
       <button
         type="button"
         onClick={() => onChange("en")}
-        className={`rounded px-3 py-1 text-xs font-medium ${
-          locale === "en" ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+          locale === "en" ? "bg-teal-700 text-white" : "text-zinc-600 hover:bg-zinc-100"
         }`}
       >
         EN

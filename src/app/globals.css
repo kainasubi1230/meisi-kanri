@@ -1,19 +1,70 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
-  --background: #fafaf9;
-  --foreground: #1f2937;
+  --background: #f4f8f7;
+  --foreground: #152235;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --font-sans: "Avenir Next", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
   --font-mono: "Consolas", "Menlo", monospace;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
-  background: var(--background);
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(90rem 35rem at -10% -20%, #c7f1e5 0%, transparent 60%),
+    radial-gradient(70rem 28rem at 110% -10%, #ffe7d1 0%, transparent 62%),
+    linear-gradient(180deg, #f8fbfa 0%, #f2f6fb 55%, #f6faf8 100%);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: #99f6e4;
+  color: #0f172a;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 90%);
+}
+
+@keyframes float-soft {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.float-soft {
+  animation: float-soft 6s ease-in-out infinite;
 }

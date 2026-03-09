@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "名刺電子化アプリ",
-  description: "名刺画像をAIで抽出して、認証付きで管理するアプリ",
+  title: "Meisi Kanri | Business Card Workspace",
+  description: "Capture business cards, extract data with AI, and manage searchable records with sharing.",
 };
 
 export default function RootLayout({
@@ -14,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <div className="app-shell">{children}</div>
+      </body>
     </html>
   );
 }
