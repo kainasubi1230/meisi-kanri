@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-export async function PUT(request: Request, { params }: { params: { cardId: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ cardId: string }> }) {
   try {
     const session = await getServerAuthSession();
     const userId = session?.user?.email;
@@ -14,7 +14,7 @@ export async function PUT(request: Request, { params }: { params: { cardId: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { cardId } = params;
+    const { cardId } = await params;
     if (!cardId) {
       return NextResponse.json({ error: "Card ID is required." }, { status: 400 });
     }
