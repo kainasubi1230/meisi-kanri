@@ -86,6 +86,8 @@ export const createCardsBatchRequestSchema = imagePayloadSchema.extend({
   cards: z.array(createCardBaseSchema).min(1).max(50),
 });
 
+export const updateCardRequestSchema = businessCardFieldsSchema;
+
 export type BusinessCardFields = z.infer<typeof businessCardFieldsSchema>;
 export type CardConfidence = z.infer<typeof cardConfidenceSchema>;
 export type ExtractedCard = z.infer<typeof extractedCardSchema>;

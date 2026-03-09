@@ -72,6 +72,12 @@ const uiText = {
     remove: "削除",
     introReadOnly: "このカードの紹介設定はオーナーのみ変更できます。",
     noImage: "画像なし",
+    edit: "編集",
+    save: "保存",
+    cancel: "キャンセル",
+    editSuccess: "カードを更新しました。",
+    editError: "カードの更新に失敗しました。",
+    editing: "更新中...",
   },
   en: {
     title: "Saved Business Cards",
@@ -110,6 +116,12 @@ const uiText = {
     remove: "Remove",
     introReadOnly: "Only the owner can change introduction settings for this card.",
     noImage: "No image",
+    edit: "Edit",
+    save: "Save",
+    cancel: "Cancel",
+    editSuccess: "Card updated successfully.",
+    editError: "Failed to update card.",
+    editing: "Updating...",
   },
 } as const;
 
@@ -132,6 +144,11 @@ export function CardsListClient() {
   const [introMessageByCardId, setIntroMessageByCardId] = useState<
     Record<string, { kind: MessageKind; text: string } | null>
   >({});
+
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editingFields, setEditingFields] = useState<Partial<CardItem>>({});
+  const [editingBusy, setEditingBusy] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
 
   const messageTone = (kind: MessageKind) => (kind === "success" ? "text-emerald-700" : "text-rose-600");
 
@@ -290,6 +307,55 @@ export function CardsListClient() {
       }));
     } finally {
       setIntroBusyCardId(null);
+    }
+  };
+
+  const startEdit = (card: CardItem) => {
+    setEditingCardId(card.id);
+    setEditingFields({
+      fullName: card.fullName,
+      company: card.company,
+      department: card.department,
+      title: card.title,
+      email: card.email,
+      phone: card.phone,
+      address: card.address,
+      website: card.website,
+      memo: card.memo,
+    });
+    setEditingMessage(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingCardId(null);
+    setEditingFields({});
+    setEditingMessage(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editingCardId) return;
+
+    setEditingBusy(true);
+    setEditingMessage(null);
+    try {
+      const response = await fetch(`/api/cards/${editingCardId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingFields),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || t.editError);
+      }
+
+      setEditingMessage({ kind: "success", text: t.editSuccess });
+      await fetchAll(query);
+      setEditingCardId(null);
+      setEditingFields({});
+    } catch (e) {
+      setEditingMessage({ kind: "error", text: e instanceof Error ? e.message : t.editError });
+    } finally {
+      setEditingBusy(false);
     }
   };
 
@@ -475,34 +541,167 @@ export function CardsListClient() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="truncate text-base font-semibold text-zinc-900">{card.fullName || t.nameFallback}</h2>
-                  <time className="text-xs text-zinc-500">
-                    {new Date(card.createdAt).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </time>
+                  <div className="flex items-center gap-2">
+                    <time className="text-xs text-zinc-500">
+                      {new Date(card.createdAt).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                    {card.accessType === "owner" && editingCardId !== card.id && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(card)}
+                        className="btn-secondary px-3 py-1 text-xs"
+                      >
+                        {t.edit}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <p className="mt-1 text-sm text-zinc-700">
-                  {[card.company, card.department, card.title].filter(Boolean).join(" / ") || t.companyFallback}
-                </p>
+                {editingCardId === card.id ? (
+                  <div className="mt-1 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Company"
+                      value={editingFields.company || ""}
+                      onChange={(e) => setEditingFields((prev) => ({ ...prev, company: e.target.value || null }))}
+                      className="input"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Department"
+                      value={editingFields.department || ""}
+                      onChange={(e) => setEditingFields((prev) => ({ ...prev, department: e.target.value || null }))}
+                      className="input"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Title"
+                      value={editingFields.title || ""}
+                      onChange={(e) => setEditingFields((prev) => ({ ...prev, title: e.target.value || null }))}
+                      className="input"
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-zinc-700">
+                    {[card.company, card.department, card.title].filter(Boolean).join(" / ") || t.companyFallback}
+                  </p>
+                )}
 
-                <div className="mt-3 grid gap-1 text-sm text-zinc-600 sm:grid-cols-2">
-                  <p className="truncate">
-                    {t.email}: {card.email || "-"}
-                  </p>
-                  <p className="truncate">
-                    {t.phone}: {card.phone || "-"}
-                  </p>
-                  <p className="truncate">
-                    {t.address}: {card.address || "-"}
-                  </p>
-                  <p className="truncate">
-                    {t.website}: {card.website || "-"}
-                  </p>
-                </div>
+                {editingCardId === card.id ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        placeholder="Full Name"
+                        value={editingFields.fullName || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, fullName: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Company"
+                        value={editingFields.company || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, company: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Department"
+                        value={editingFields.department || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, department: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Title"
+                        value={editingFields.title || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, title: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={editingFields.email || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, email: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Phone"
+                        value={editingFields.phone || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, phone: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Address"
+                        value={editingFields.address || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, address: e.target.value || null }))}
+                        className="input"
+                      />
+                      <input
+                        type="url"
+                        placeholder="Website"
+                        value={editingFields.website || ""}
+                        onChange={(e) => setEditingFields((prev) => ({ ...prev, website: e.target.value || null }))}
+                        className="input"
+                      />
+                    </div>
+                    <textarea
+                      placeholder="Memo"
+                      value={editingFields.memo || ""}
+                      onChange={(e) => setEditingFields((prev) => ({ ...prev, memo: e.target.value || null }))}
+                      className="input min-h-[80px] resize-none"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveEdit()}
+                        disabled={editingBusy}
+                        className="btn-primary px-4"
+                      >
+                        {editingBusy ? t.editing : t.save}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        disabled={editingBusy}
+                        className="btn-secondary px-4"
+                      >
+                        {t.cancel}
+                      </button>
+                    </div>
+                    {editingMessage && (
+                      <p className={`text-xs font-medium ${messageTone(editingMessage.kind)}`}>{editingMessage.text}</p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm text-zinc-700">
+                      {[card.company, card.department, card.title].filter(Boolean).join(" / ") || t.companyFallback}
+                    </p>
 
-                {card.memo ? <p className="mt-3 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700">{card.memo}</p> : null}
+                    <div className="mt-3 grid gap-1 text-sm text-zinc-600 sm:grid-cols-2">
+                      <p className="truncate">
+                        {t.email}: {card.email || "-"}
+                      </p>
+                      <p className="truncate">
+                        {t.phone}: {card.phone || "-"}
+                      </p>
+                      <p className="truncate">
+                        {t.address}: {card.address || "-"}
+                      </p>
+                      <p className="truncate">
+                        {t.website}: {card.website || "-"}
+                      </p>
+                    </div>
+
+                    {card.memo && <p className="mt-3 rounded-xl bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-700">{card.memo}</p>}
+                  </>
+                )}
 
                 <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3">
                   <p className="text-sm font-semibold text-zinc-800">{t.introductionTitle}</p>
