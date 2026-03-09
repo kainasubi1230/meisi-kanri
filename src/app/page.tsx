@@ -1,9 +1,8 @@
-import { CardCaptureClient } from "@/components/card-capture-client";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#f4f4f5,_#fafaf9_55%)]">
-      <CardCaptureClient />
-    </main>
-  );
+import { getServerAuthSession } from "@/auth";
+
+export default async function Home() {
+  const session = await getServerAuthSession();
+  redirect(session?.user?.email ? "/capture" : "/login");
 }

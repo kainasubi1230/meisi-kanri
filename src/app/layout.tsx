@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "名刺電子化アプリ",
-  description: "名刺画像をAIで読み取り、検索可能なデータとして管理するアプリ",
+  description: "名刺画像をAIで抽出して、認証付きで管理するアプリ",
 };
 
 export default function RootLayout({

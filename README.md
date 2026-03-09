@@ -25,7 +25,7 @@ npm install
 POSTGRES_PRISMA_URL="prisma://..."
 POSTGRES_URL_NON_POOLING="postgres://..."
 GEMINI_API_KEY="..."
-GEMINI_MODEL="gemini-2.0-flash"
+GEMINI_MODEL="gemini-2.5-flash"
 ```
 
 3. Prisma Client 生成 + マイグレーション

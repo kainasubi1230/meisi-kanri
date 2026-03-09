@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 
-import { createCardRequestSchema } from "@/lib/business-card";
+import { getServerAuthSession } from "@/auth";
+import { createCardRequestSchema, createCardsBatchRequestSchema } from "@/lib/business-card";
 import { prisma } from "@/lib/prisma";
-import { getRequestUserId } from "@/lib/user";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const userId = getRequestUserId(request.headers.get("x-user-id"));
+    const session = await getServerAuthSession();
+    const userId = session?.user?.email;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q")?.trim() || "";
 
@@ -38,10 +43,34 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const userId = getRequestUserId(request.headers.get("x-user-id"));
-    const payload = await request.json();
-    const parsed = createCardRequestSchema.parse(payload);
+    const session = await getServerAuthSession();
+    const userId = session?.user?.email;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
+    const payload = await request.json();
+
+    if (payload && typeof payload === "object" && Array.isArray((payload as { cards?: unknown[] }).cards)) {
+      const parsedBatch = createCardsBatchRequestSchema.parse(payload);
+
+      const cards = await prisma.$transaction(
+        parsedBatch.cards.map((card) =>
+          prisma.businessCard.create({
+            data: {
+              userId,
+              ...card,
+              imageBase64: card.imageBase64 ?? parsedBatch.imageBase64,
+              imageMimeType: card.imageMimeType ?? parsedBatch.imageMimeType,
+            },
+          }),
+        ),
+      );
+
+      return NextResponse.json({ cards, count: cards.length }, { status: 201 });
+    }
+
+    const parsed = createCardRequestSchema.parse(payload);
     const card = await prisma.businessCard.create({
       data: {
         userId,

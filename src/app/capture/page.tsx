@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { getServerAuthSession } from "@/auth";
-import { CardsListClient } from "@/components/cards-list-client";
+import { CardCaptureClient } from "@/components/card-capture-client";
 
-export default async function CardsPage() {
+export default async function CapturePage() {
   const session = await getServerAuthSession();
   if (!session?.user?.email) {
     redirect("/login");
@@ -11,7 +11,7 @@ export default async function CardsPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#f4f4f5,_#fafaf9_55%)]">
-      <CardsListClient />
+      <CardCaptureClient />
     </main>
   );
 }
