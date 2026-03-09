@@ -202,7 +202,7 @@ function scoreNormalizedRect(rect: NormalizedRect): number {
 
   const overflowX = Math.max(0, -(rect.x)) + Math.max(0, rect.x + rect.width - 1);
   const overflowY = Math.max(0, -(rect.y)) + Math.max(0, rect.y + rect.height - 1);
-  const overflowPenalty = (overflowX + overflowY) * 10; // Stronger penalty for overflow
+  const overflowPenalty = (overflowX + overflowY) * 3; // Moderate penalty for overflow
 
   const clampedWidth = Math.max(0, Math.min(1, rect.x + rect.width) - Math.max(0, rect.x));
   const clampedHeight = Math.max(0, Math.min(1, rect.y + rect.height) - Math.max(0, rect.y));
@@ -211,8 +211,8 @@ function scoreNormalizedRect(rect: NormalizedRect): number {
     return Number.NEGATIVE_INFINITY;
   }
 
-  // Business card should be reasonably sized (10-50% of image)
-  const areaPenalty = Math.abs(area - 0.25) * 1.5 + (area < 0.04 ? 5 : 0) + (area > 0.85 ? 5 : 0);
+  // Business card should be 5-80% of image (more lenient)
+  const areaPenalty = Math.abs(area - 0.25) + (area < 0.02 ? 3 : 0) + (area > 0.9 ? 3 : 0);
 
   return -(overflowPenalty + areaPenalty);
 }
@@ -237,8 +237,8 @@ function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: numb
     scoreNormalizedRect(current) > scoreNormalizedRect(bestRect) ? current : bestRect,
   );
 
-  // Minimal padding to stay as close to card edges as possible
-  const padding = 0.005;
+  // Small padding to avoid edge clipping
+  const padding = 0.015;
   const x1 = clamp01(best.x - padding);
   const y1 = clamp01(best.y - padding);
   const x2 = clamp01(best.x + best.width + padding);
@@ -249,8 +249,8 @@ function resolveCropRect(box: BoundingBox, imageWidth: number, imageHeight: numb
   const sw = Math.max(1, Math.floor((x2 - x1) * imageWidth));
   const sh = Math.max(1, Math.floor((y2 - y1) * imageHeight));
 
-  // Ensure minimum size and reject if outside bounds
-  if (sw < 50 || sh < 30) {
+  // Allow smaller business cards (minimum 30x20)
+  if (sw < 30 || sh < 20) {
     return null;
   }
 
@@ -312,25 +312,40 @@ async function optimizeImageForUpload(file: File): Promise<File> {
 
 async function cropImageByBoundingBox(
   file: File,
-  boundingBox: BoundingBox,
+  boundingBox: BoundingBox | null,
 ): Promise<{ base64: string; mimeType: string } | null> {
   const sourceUrl = URL.createObjectURL(file);
   try {
     const img = await loadImage(sourceUrl);
-    const cropRect = resolveCropRect(boundingBox, img.width, img.height);
-    if (!cropRect) {
-      return null;
+    
+    // If no bounding box or crop fails, fall back to using full image with quality reduction
+    let cropRect = null;
+    if (boundingBox) {
+      cropRect = resolveCropRect(boundingBox, img.width, img.height);
     }
-
+    
     const canvas = document.createElement("canvas");
-    canvas.width = cropRect.sw;
-    canvas.height = cropRect.sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       return null;
     }
-
-    ctx.drawImage(img, cropRect.sx, cropRect.sy, cropRect.sw, cropRect.sh, 0, 0, cropRect.sw, cropRect.sh);
+    
+    if (cropRect) {
+      // Use cropped region
+      canvas.width = cropRect.sw;
+      canvas.height = cropRect.sh;
+      ctx.drawImage(img, cropRect.sx, cropRect.sy, cropRect.sw, cropRect.sh, 0, 0, cropRect.sw, cropRect.sh);
+    } else if (boundingBox) {
+      // Bounding box exists but crop resolution failed - fall back to full image
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+    } else {
+      // No bounding box at all - use full image
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+    }
 
     const outputMimeType = file.type.startsWith("image/") ? file.type : "image/jpeg";
     const dataUrl = canvas.toDataURL(outputMimeType, 0.92);
@@ -425,8 +440,8 @@ export function CardCaptureClient() {
       const nextCards = await Promise.all(
         data.cards.map(async (card) => {
           const cropped =
-            card.boundingBox && selectedImage.uploadFile
-              ? await cropImageByBoundingBox(selectedImage.uploadFile, card.boundingBox)
+            selectedImage.uploadFile
+              ? await cropImageByBoundingBox(selectedImage.uploadFile, card.boundingBox || null)
               : null;
 
           return {
